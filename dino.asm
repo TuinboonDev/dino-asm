@@ -3,12 +3,15 @@
 %define IOCTL 16
 %define F_GETFL 3
 %define F_SETFL 4
-%define O_NONBLOCK 0x400
+%define O_NONBLOCK 00004000
 %define TCGETS 21505
 %define TCSETS 21506  
 
+%define EAGAIN 11
+%define EWOULDBLOCK 11
+
 struc termios
-    	resb 12
+    resb 12
 	.flags: resb 12
 	resb 44
 endstruc
@@ -18,8 +21,7 @@ section .bss
 	tty  resb termios_size
 
 	buffer resb 1
-	fd_set resb 8
-	file_status resq 1
+	flags resd 1
 
 	obstacleX resb 1
 	obstacleHeight resb 1
@@ -27,10 +29,13 @@ section .bss
 	lineI resb 1
 
 section .data
+	debug_no_input: db "No input", 10
+    debug_no_input_len: equ $-debug_no_input
+
 	stdin_fd equ 0
 		 
 	timespec:
-	        dq 1
+	    dq 1
 		dq 0
 
 	original_termios db 32 dup(0)
@@ -87,24 +92,21 @@ section .text
 		jmp main_loop
 
 	main_loop:	
-		call debug_buffer
 		call render_frame
-		call debug_buffer
 		call get_input
-		call debug_buffer
 		mov al, [buffer]
-
-;		lea rsi, [buffer]
-;		mov rdx, 1
-;		mov rdi, 1
-;		mov rax, 1
-;		syscall
 
 		cmp al, ' '
 		je dino_up
 
 		cmp al, 'q'
 		je exit
+
+		mov rsi, 65
+		mov rdx, 1
+		mov rdi, 1
+		mov rax, 1
+		syscall
 
 		lea rdi, [timespec]
 		mov rsi, 0
@@ -114,7 +116,7 @@ section .text
 		jmp main_loop
 
 	debug_buffer:
-	    	mov rax, 1
+	    mov rax, 1
 		mov rdi, 1             
 		lea rsi, [buffer]
 		mov rdx, 1
@@ -122,7 +124,7 @@ section .text
 		ret
 
 	clear_term:
-	        mov rsi, ansi_clear
+	    mov rsi, ansi_clear
 		mov rdx, ansi_clear_len
 		mov rdi, 1
 		mov rax, 1
@@ -152,10 +154,6 @@ section .text
 		mov rdi, 0
 		syscall
 
-	no_input:
-		mov byte [buffer], 0
-		ret
-
 	get_input:
 		mov rdi, stdin_fd
 		lea rsi, [buffer]
@@ -163,26 +161,29 @@ section .text
 		mov rax, 0
 		syscall
 
-		test rax, rax
-		js no_input
 		ret
 
 	set_nonblocking:
-	    	mov rdi, stdin_fd
-	        mov rax, F_GETFL
-		syscall
+        mov rax, 72
+        mov rdi, 0
+        mov rsi, F_GETFL
+        mov rdx, 0
+        syscall     
 
-		or rax, O_NONBLOCK
-		mov rsi, rax
-		mov rdi, stdin_fd
-		mov rax, F_SETFL
-		syscall
+        or rax, O_NONBLOCK
+        mov [flags], rax
 
-		ret
+        mov rax, 72
+        mov rdi, 0
+        mov rsi, F_SETFL
+        mov rdx, [flags]
+        syscall      
+
+        ret
 	
 	unbuffer:
-	    	mov rax, stty
-	        mov rdx, 0
+		mov rax, stty
+		mov rdx, 0
 		call ioctl
 
 		mov rax, tty
@@ -201,15 +202,15 @@ section .text
 		ret
 
 	restore_buffer:
-	    	mov rax, stty
-	        mov rdx, 1
+		mov rax, stty
+		mov rdx, 1
 		call ioctl
 
 		ret
 
 	ioctl:
-	    	push rdi
-	        push rsi
+		push rdi
+		push rsi
 
 		add rdx, TCGETS
 		mov rsi, rdx
