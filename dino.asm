@@ -26,15 +26,15 @@ section .bss
 section .data
 	stdin_fd equ 0
 		 
-	obstacleX db 3
+	obstacleX db 0
 	obstacleHeight db 0
-	dinoHeight db 2
+	dinoHeight db 0
 	lineI db 0
 	columnI db 0
 
 	timespec:
 	    dq 1
-		dq 0
+		dq 0               
 
 	original_termios db 32 dup(0)
 	
@@ -66,7 +66,7 @@ section .text
 	global _start
 
 	_start:
-		mov byte [dinoHeight], 2 
+		mov byte [dinoHeight], 0
 		mov byte [obstacleX], 10
 		mov byte [obstacleHeight], 0
 		mov byte [lineI], 0
@@ -76,23 +76,18 @@ section .text
 		call main_loop
 
 	dino_up:
-		mov al, [dinoHeight]
-		inc al
-		mov [dinoHeight], al
-
-		add al, "0"
-		mov [buffer], al
-
-		mov rax, 1
-		mov rdi, 1
-		lea rsi, buffer
-		mov rdx, 1
-		syscall
+		inc byte [dinoHeight]
 
 		jmp main_loop
 
+	shift_obstacle:
+		mov byte [obstacleX], 10
+
 	main_loop:
 		mov byte [lineI], 4
+		mov byte [buffer], 0
+		cmp byte [obstacleX], 1
+		je shift_obstacle
 
 		call render_frame
 		call get_input
@@ -104,26 +99,20 @@ section .text
 		cmp al, 'q'
 		je exit
 
-		mov rsi, 65
-		mov rdx, 1
-		mov rdi, 1
-		mov rax, 1
-		syscall
-
 		lea rdi, [timespec]
 		mov rsi, 0
 		mov rax, 35
 		syscall
 
 		dec byte [obstacleX]
-		
+
 		jmp main_loop
 
-	debug_buffer:
-	    mov rax, 1
-		mov rdi, 1             
-		lea rsi, [buffer]
-		mov rdx, 1
+	debug:
+	    mov rsi, w
+		mov rdx, wLen
+		mov rdi, 1
+		mov rax, 1
 		syscall
 		ret
 

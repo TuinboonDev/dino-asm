@@ -13,3 +13,9 @@ qr: uri
 	qrencode -o qr.png $$(cat uri.txt)
 	rm uri.txt
 	rm dino
+
+debug:
+	nasm -f elf64 -g -F dwarf dino.asm -o dino.o
+	ld dino.o -o dino
+	rm dino.o
+	gdb dino
