@@ -7,8 +7,8 @@
 %define TCGETS 21505
 %define TCSETS 21506  
 
-%define EAGAIN 11
-%define EWOULDBLOCK 11
+; https://syscalls.w3challs.com/?arch=x86_64
+; https://github.com/torvalds/linux/
 
 struc termios
     resb 12
@@ -23,17 +23,15 @@ section .bss
 	buffer resb 1
 	flags resd 1
 
-	obstacleX resb 1
-	obstacleHeight resb 1
-	dinoHeight resb 1
-	lineI resb 1
-
 section .data
-	debug_no_input: db "No input", 10
-    debug_no_input_len: equ $-debug_no_input
-
 	stdin_fd equ 0
 		 
+	obstacleX db 3
+	obstacleHeight db 0
+	dinoHeight db 2
+	lineI db 0
+	columnI db 0
+
 	timespec:
 	    dq 1
 		dq 0
@@ -49,13 +47,14 @@ section .data
 	ansi_clear: db 27,"[2J"
 	ansi_clear_len: equ $-ansi_clear
 
-; 	dinoHeight: db 0
-
 	dino: db "☺"
 	dinoLen: equ $-dino
 
-	obstacle: db "█", 10, "█", 10, "█", 10
+	obstacle: db "█", 10
 	obstacleLen: equ $-obstacle
+
+	space: db " "
+	spaceLen: equ $-space
 
 	newline: db 10
 	newlineLen: equ $-newline
@@ -67,10 +66,11 @@ section .text
 	global _start
 
 	_start:
-		mov byte [dinoHeight], 0
-		mov byte [obstacleX], 0
+		mov byte [dinoHeight], 2 
+		mov byte [obstacleX], 10
 		mov byte [obstacleHeight], 0
 		mov byte [lineI], 0
+		mov byte [columnI], 0
 
 		call unbuffer
 		call main_loop
@@ -91,7 +91,9 @@ section .text
 
 		jmp main_loop
 
-	main_loop:	
+	main_loop:
+		mov byte [lineI], 4
+
 		call render_frame
 		call get_input
 		mov al, [buffer]
@@ -112,6 +114,8 @@ section .text
 		mov rsi, 0
 		mov rax, 35
 		syscall
+
+		dec byte [obstacleX]
 		
 		jmp main_loop
 
@@ -138,12 +142,85 @@ section .text
 
 		ret
 
-	render_frame:
+	draw_floor:
+		mov rsi, floor
+		mov rdx, floorLen
+		mov rdi, 1
+		mov rax, 1
+		syscall
+
+		ret
+
+	draw_wall:
+		mov rsi, obstacle
+		mov rdx, obstacleLen
+		mov rdi, 1
+		mov rax, 1
+		syscall
+
+		ret
+
+	draw_dino:
 		mov rsi, dino
 		mov rdx, dinoLen
 		mov rdi, 1
 		mov rax, 1
 		syscall
+
+		ret
+
+	dino_logic:
+		mov al, [dinoHeight]
+		mov ah, [lineI]
+		cmp byte ah, al
+		je dino_check
+		jne draw_space
+
+		ret
+
+	draw_space:
+		mov rsi, space
+		mov rdx, spaceLen
+		mov rdi, 1
+		mov rax, 1
+		syscall
+
+		ret
+
+	dino_check:
+		cmp byte [columnI], 2
+		je draw_dino
+		jne draw_space
+
+		ret
+
+	wall_logic:
+		call dino_logic
+
+		mov al, [obstacleX]
+		mov ah, [columnI]
+		inc byte [columnI]
+		cmp byte ah, al
+		je draw_wall
+		jl wall_logic
+
+		ret
+
+	line_logic:
+		dec byte [lineI]
+		mov byte [columnI], 0
+
+	    cmp byte [lineI], 0	
+	    je draw_floor
+		jg wall_logic
+
+		ret
+		
+	render_frame:
+		call line_logic
+		
+		cmp byte [lineI], 0
+		jge render_frame
 
 		ret
 
