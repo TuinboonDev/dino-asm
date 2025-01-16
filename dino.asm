@@ -66,7 +66,7 @@ section .text
 	global _start
 
 	_start:
-		mov byte [dinoHeight], 0
+		mov byte [dinoHeight], 1
 		mov byte [obstacleX], 10
 		mov byte [obstacleHeight], 0
 		mov byte [lineI], 0
